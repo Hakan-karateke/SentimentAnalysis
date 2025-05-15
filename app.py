@@ -19,8 +19,8 @@ def load_sentiment_model():
     try:
         # Try to import TensorFlow/Keras
         try:
-            from keras.models import load_model
-            from keras.preprocessing.sequence import pad_sequences
+            from tensorflow.keras.models import load_model
+            from tensorflow.keras.preprocessing.sequence import pad_sequences
             
             # Make pad_sequences globally accessible
             globals()['load_model'] = load_model

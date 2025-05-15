@@ -1,5 +1,10 @@
 # Duygu Analizi Uygulaması
 
+![Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
+![Flask](https://img.shields.io/badge/flask-v2.0+-green.svg)
+![TensorFlow](https://img.shields.io/badge/tensorflow-v2.9+-orange.svg)
+![NLTK](https://img.shields.io/badge/nltk-v3.6+-yellow.svg)
+
 Bu uygulama, önceden eğitilmiş bir LSTM modeli kullanarak metin veya tweet'leri analiz eden ve duygu durumlarını (pozitif/negatif) belirleyen bir web uygulamasıdır.
 
 ## Özellikler
