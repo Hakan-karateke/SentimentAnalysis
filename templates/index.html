@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duygu Analizi Uygulaması</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 20px;
+        }
+        .sentiment-card {
+            margin-top: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 10px;
+        }
+        .positive {
+            background-color: rgba(40, 167, 69, 0.1);
+            border-left: 5px solid #28a745;
+        }
+        .negative {
+            background-color: rgba(220, 53, 69, 0.1);
+            border-left: 5px solid #dc3545;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #0d6efd;
+        }
+        .result-box {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .confidence-bar {
+            height: 5px;
+            margin-bottom: 15px;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #0d6efd;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Duygu Analizi Uygulaması</h1>
+        
+        <ul class="nav nav-pills mb-4 justify-content-center" id="analysisTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="text-tab" data-bs-toggle="pill" data-bs-target="#text" type="button" role="tab" aria-controls="text" aria-selected="true">
+                    <i class="fas fa-comment me-2"></i>Metin Analizi
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="batch-tab" data-bs-toggle="pill" data-bs-target="#batch" type="button" role="tab" aria-controls="batch" aria-selected="false">
+                    <i class="fas fa-list-ul me-2"></i>Toplu Analiz
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="twitter-tab" data-bs-toggle="pill" data-bs-target="#twitter" type="button" role="tab" aria-controls="twitter" aria-selected="false">
+                    <i class="fab fa-twitter me-2"></i>Twitter Analizi
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="analysisTabsContent">
+            <!-- Tek Metin Analizi -->
+            <div class="tab-pane fade show active" id="text" role="tabpanel" aria-labelledby="text-tab">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Metin Duygu Analizi</h5>
+                        <div class="mb-3">
+                            <label for="sentimentText" class="form-label">Analiz edilecek metni girin:</label>
+                            <textarea class="form-control" id="sentimentText" rows="4" placeholder="Analiz etmek istediğiniz metni buraya girin..."></textarea>
+                        </div>
+                        <button class="btn btn-primary" id="analyzeBtn">
+                            <i class="fas fa-search me-2"></i>Analiz Et
+                        </button>
+                        <div class="loader" id="textLoader"></div>
+                    </div>
+                </div>
+                
+                <div id="resultCard" class="card sentiment-card d-none mt-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title">Analiz Sonucu</h5>
+                            <span class="badge" id="sentimentBadge"></span>
+                        </div>
+                        <p class="card-text" id="analyzedText"></p>
+                        <div>
+                            <span class="me-2">Güven Oranı:</span>
+                            <span id="confidenceValue"></span>
+                        </div>
+                        <div class="progress confidence-bar">
+                            <div class="progress-bar" id="confidenceBar" role="progressbar"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Toplu Analiz -->
+            <div class="tab-pane fade" id="batch" role="tabpanel" aria-labelledby="batch-tab">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Toplu Duygu Analizi</h5>
+                        <div class="mb-3">
+                            <label for="batchText" class="form-label">Her satıra bir metin girin:</label>
+                            <textarea class="form-control" id="batchText" rows="6" placeholder="Her satıra bir metin girin. Örnek:
+Bu ürün harika!
+Hiç beğenmedim, tamamen zaman kaybı.
+Ortalama bir deneyimdi."></textarea>
+                        </div>
+                        <button class="btn btn-primary" id="batchAnalyzeBtn">
+                            <i class="fas fa-search me-2"></i>Toplu Analiz Et
+                        </button>
+                        <div class="loader" id="batchLoader"></div>
+                    </div>
+                </div>
+                
+                <div id="batchResults" class="mt-4 result-box d-none">
+                    <h5>Analiz Sonuçları</h5>
+                    <div id="batchResultsList"></div>
+                </div>
+            </div>
+            
+            <!-- Twitter Analizi -->
+            <div class="tab-pane fade" id="twitter" role="tabpanel" aria-labelledby="twitter-tab">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Twitter Duygu Analizi</h5>
+                        <p class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Bu özellik kullanılabilir değil. Twitter API erişimi gerekmektedir.
+                        </p>
+                        <div class="mb-3">
+                            <label for="twitterKeyword" class="form-label">Anahtar Kelime veya Hashtag:</label>
+                            <input type="text" class="form-control" id="twitterKeyword" placeholder="#hashtag veya anahtar kelime">
+                        </div>
+                        <div class="mb-3">
+                            <label for="tweetCount" class="form-label">Tweet Sayısı:</label>
+                            <select class="form-select" id="tweetCount">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" id="twitterAnalyzeBtn" disabled>
+                            <i class="fab fa-twitter me-2"></i>Twitter'da Ara
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Tek metin analizi
+            document.getElementById('analyzeBtn').addEventListener('click', function() {
+                const text = document.getElementById('sentimentText').value.trim();
+                if (!text) {
+                    alert('Lütfen analiz edilecek bir metin girin.');
+                    return;
+                }
+                
+                // Yükleniyor göster
+                document.getElementById('textLoader').style.display = 'block';
+                document.getElementById('resultCard').classList.add('d-none');
+                
+                // API'ye gönder
+                fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Yükleniyor kapat
+                    document.getElementById('textLoader').style.display = 'none';
+                    
+                    // Sonuçları göster
+                    const resultCard = document.getElementById('resultCard');
+                    resultCard.classList.remove('d-none', 'positive', 'negative');
+                    resultCard.classList.add(data.sentiment === 'Pozitif' ? 'positive' : 'negative');
+                    
+                    document.getElementById('analyzedText').textContent = data.text;
+                    
+                    const badge = document.getElementById('sentimentBadge');
+                    badge.textContent = data.sentiment;
+                    badge.className = 'badge ' + (data.sentiment === 'Pozitif' ? 'bg-success' : 'bg-danger');
+                    
+                    document.getElementById('confidenceValue').textContent = data.confidence + '%';
+                    
+                    const confidenceBar = document.getElementById('confidenceBar');
+                    confidenceBar.style.width = data.confidence + '%';
+                    confidenceBar.className = 'progress-bar ' + (data.sentiment === 'Pozitif' ? 'bg-success' : 'bg-danger');
+                })
+                .catch(error => {
+                    console.error('Hata:', error);
+                    document.getElementById('textLoader').style.display = 'none';
+                    alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+                });
+            });
+            
+            // Toplu analiz
+            document.getElementById('batchAnalyzeBtn').addEventListener('click', function() {
+                const textArea = document.getElementById('batchText').value.trim();
+                if (!textArea) {
+                    alert('Lütfen analiz edilecek metinleri girin.');
+                    return;
+                }
+                
+                const texts = textArea.split('\n').filter(line => line.trim() !== '');
+                if (texts.length === 0) {
+                    alert('Lütfen analiz edilecek en az bir metin girin.');
+                    return;
+                }
+                
+                // Yükleniyor göster
+                document.getElementById('batchLoader').style.display = 'block';
+                document.getElementById('batchResults').classList.add('d-none');
+                
+                // API'ye gönder
+                fetch('/batch-analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ texts: texts })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Yükleniyor kapat
+                    document.getElementById('batchLoader').style.display = 'none';
+                    
+                    // Sonuçları göster
+                    const resultsDiv = document.getElementById('batchResults');
+                    resultsDiv.classList.remove('d-none');
+                    
+                    const resultsList = document.getElementById('batchResultsList');
+                    resultsList.innerHTML = '';
+                    
+                    data.forEach(result => {
+                        const card = document.createElement('div');
+                        card.classList.add('card', 'mb-3');
+                        card.classList.add(result.sentiment === 'Pozitif' ? 'positive' : 'negative');
+                        
+                        const cardBody = document.createElement('div');
+                        cardBody.classList.add('card-body');
+                        
+                        const header = document.createElement('div');
+                        header.classList.add('d-flex', 'justify-content-between', 'align-items-center');
+                        
+                        const text = document.createElement('p');
+                        text.classList.add('mb-2');
+                        text.textContent = result.text;
+                        
+                        const badge = document.createElement('span');
+                        badge.classList.add('badge');
+                        badge.classList.add(result.sentiment === 'Pozitif' ? 'bg-success' : 'bg-danger');
+                        badge.textContent = result.sentiment + ' (' + result.confidence + '%)';
+                        
+                        header.appendChild(text);
+                        header.appendChild(badge);
+                        cardBody.appendChild(header);
+                        card.appendChild(cardBody);
+                        resultsList.appendChild(card);
+                    });
+                })
+                .catch(error => {
+                    console.error('Hata:', error);
+                    document.getElementById('batchLoader').style.display = 'none';
+                    alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+                });
+            });
+        });
+    </script>
+</body>
+</html>

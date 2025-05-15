@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter Duygu Analizi | Duygu Analizi Uygulaması</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px 0;
+        }
+        .sentiment-card {
+            margin-top: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 10px;
+        }
+        .positive {
+            background-color: rgba(40, 167, 69, 0.1);
+            border-left: 5px solid #28a745;
+        }
+        .negative {
+            background-color: rgba(220, 53, 69, 0.1);
+            border-left: 5px solid #dc3545;
+        }
+        .tweet-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #0d6efd;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .stats {
+            background-color: #fff;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            height: 250px;
+            margin-top: 20px;
+        }
+        .tweet-user {
+            font-weight: bold;
+        }
+        .tweet-username {
+            color: #6c757d;
+        }
+        .tweet-text {
+            font-size: 0.95rem;
+            margin: 10px 0;
+        }
+        .tweet-meta {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4 rounded">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">
+                    <i class="fas fa-arrow-left me-2"></i>Ana Sayfaya Dön
+                </a>
+                <span class="navbar-text">
+                    <i class="fab fa-twitter text-primary"></i> Twitter Duygu Analizi
+                </span>
+            </div>
+        </nav>
+
+        <div class="row">
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Twitter Aramasi</h5>
+                        <p class="text-muted">Twitter'da aramak ve analiz etmek istediğiniz konuyu girin:</p>
+                        <div class="mb-3">
+                            <label for="searchQuery" class="form-label">Anahtar Kelime veya Hashtag:</label>
+                            <div class="input-group">
+                                <span class="input-group-text" id="basic-addon1">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" class="form-control" id="searchQuery" placeholder="#hashtag veya anahtar kelime">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="tweetCount" class="form-label">Tweet Sayısı:</label>
+                            <select class="form-select" id="tweetCount">
+                                <option value="10">10 Tweet</option>
+                                <option value="25">25 Tweet</option>
+                                <option value="50" selected>50 Tweet</option>
+                                <option value="100">100 Tweet</option>
+                                <option value="200">200 Tweet</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="language" class="form-label">Dil:</label>
+                            <select class="form-select" id="language">
+                                <option value="tr">Türkçe</option>
+                                <option value="en">İngilizce</option>
+                                <option value="all" selected>Tüm Diller</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary w-100" id="searchButton" disabled>
+                            <i class="fab fa-twitter me-2"></i>Ara ve Analiz Et
+                        </button>
+                        
+                        <div class="alert alert-warning mt-3">
+                            <small><i class="fas fa-exclamation-triangle me-2"></i>Bu özelliği kullanmak için Twitter API anahtarı gereklidir.</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card stats d-none" id="statsCard">
+                    <div class="card-body">
+                        <h5 class="card-title">Analiz İstatistikleri</h5>
+                        <div class="d-flex justify-content-between mb-3">
+                            <div>
+                                <h6>Toplam Tweet</h6>
+                                <div class="h2" id="totalTweets">0</div>
+                            </div>
+                            <div class="text-center">
+                                <h6>Pozitif</h6>
+                                <div class="h2 text-success" id="positiveCount">0</div>
+                            </div>
+                            <div class="text-end">
+                                <h6>Negatif</h6>
+                                <div class="h2 text-danger" id="negativeCount">0</div>
+                            </div>
+                        </div>
+                        
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar bg-success" id="positiveBar" role="progressbar" style="width: 50%;">50%</div>
+                            <div class="progress-bar bg-danger" id="negativeBar" role="progressbar" style="width: 50%;">50%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <span id="resultsTitle">Twitter Sonuçları</span>
+                            <span class="badge bg-primary ms-2" id="resultsCount">0</span>
+                        </h5>
+                        
+                        <div class="loader" id="searchLoader"></div>
+                        
+                        <div class="alert alert-info" id="noResultsMessage">
+                            <i class="fas fa-info-circle me-2"></i>Henüz bir arama yapılmadı. 
+                            Lütfen bir anahtar kelime girerek aramaya başlayın.
+                        </div>
+                        
+                        <div class="tweet-container d-none" id="tweetContainer">
+                            <!-- Tweet sonuçları buraya gelecek -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates for dynamic content -->
+    <template id="tweetTemplate">
+        <div class="card sentiment-card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="tweet-user">User Name</span>
+                        <span class="tweet-username">@username</span>
+                    </div>
+                    <span class="badge">Sentiment</span>
+                </div>
+                <p class="tweet-text">Tweet text will go here</p>
+                <div class="tweet-meta">
+                    <i class="far fa-clock me-1"></i><span class="tweet-date">Date</span>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+    <!-- Custom JS -->
+    <script>
+        // Bu sayfa şu an için sadece tasarım amaçlıdır
+        // Twitter API bağlantısı gereklidir
+        // Kullanıcıya API entegrasyonu gerektirdiğini bilgilendiriyoruz
+    </script>
+</body>
+</html>
