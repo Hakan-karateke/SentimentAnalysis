@@ -2,54 +2,84 @@ import os
 import json
 import pickle
 import numpy as np
+import sklearn
 from flask import Flask, render_template, request, jsonify
 from sentiment_model.text_preprocessing import preprocess_text
 
 # Define variables that would normally be set by loading the model
-model = None
+lstm_feature_extractor = None
+ensemble_model = None
 tokenizer = None
 config = None
+classifiers = {}
 
 app = Flask(__name__)
 
-def load_sentiment_model():
-    """Load the pre-trained LSTM sentiment model and tokenizer"""
-    global model, tokenizer, config
+def load_ensemble_model():
+    """Load the pre-trained Ensemble model with LSTM feature extractor and classifiers"""
+    global lstm_feature_extractor, ensemble_model, tokenizer, config, classifiers
     
     try:
-        # Try to import TensorFlow/Keras
+        # Try to import TensorFlow/Keras with dynamic imports to avoid import errors
+        load_model = None
+        pad_sequences = None
+        
+        # Try different import strategies
         try:
-            from tensorflow.keras.models import load_model
-            from tensorflow.keras.preprocessing.sequence import pad_sequences
-            
-            # Make pad_sequences globally accessible
-            globals()['load_model'] = load_model
-            globals()['pad_sequences'] = pad_sequences
+            # Try tensorflow first
+            import tensorflow as tf
+            load_model = tf.keras.models.load_model
+            pad_sequences = tf.keras.preprocessing.sequence.pad_sequences
             print("TensorFlow/Keras imports successful")
-        except ImportError:
+        except (ImportError, AttributeError):
+            # Then try standalone keras
             try:
-                from keras.models import load_model
-                from keras.preprocessing.sequence import pad_sequences
-                
-                # Make pad_sequences globally accessible
-                globals()['load_model'] = load_model
-                globals()['pad_sequences'] = pad_sequences
+                import keras
+                load_model = keras.models.load_model
+                pad_sequences = keras.preprocessing.sequence.pad_sequences
                 print("Keras imports successful")
-            except ImportError:
+            except (ImportError, AttributeError):
                 print("Failed to import Keras or TensorFlow. Will use fallback method.")
                 return False
         
-        # Try to load model
+        # Make necessary functions globally accessible
+        globals()['load_model'] = load_model
+        globals()['pad_sequences'] = pad_sequences
+        
+        # Try to load models
         try:
-            model = load_model('sentiment_model/lstm_model.h5')
+            # Load LSTM feature extractor
+            lstm_feature_extractor = load_model('models/ensemble_sentiment_model/lstm_feature_extractor.h5')
             
-            with open('sentiment_model/tokenizer.pkl', 'rb') as f:
+            # Load full ensemble model if available
+            try:
+                ensemble_model = load_model('models/ensemble_sentiment_model/full_ensemble_model.h5')
+                print("Full ensemble model successfully loaded.")
+            except Exception as e:
+                print(f"Could not load full ensemble model: {str(e)}")
+                ensemble_model = None
+            
+            # Load classifiers if full ensemble model isn't available
+            if ensemble_model is None:
+                try:
+                    import joblib
+                    # Load the individual classifiers
+                    classifiers["random_forest"] = joblib.load('models/ensemble_sentiment_model/best_classifier_random_forest.pkl')
+                    classifiers["gradient_boosting"] = joblib.load('models/ensemble_sentiment_model/best_classifier_gradient_boosting.pkl')
+                    classifiers["logistic_regression"] = joblib.load('models/ensemble_sentiment_model/best_classifier_lojistik_regresyon.pkl')
+                    print("Individual classifiers successfully loaded.")
+                except Exception as e:
+                    print(f"Error loading classifier models: {str(e)}")
+                    return False
+            
+            # Load tokenizer and config
+            with open('models/ensemble_sentiment_model/tokenizer.pkl', 'rb') as f:
                 tokenizer = pickle.load(f)
             
-            with open('sentiment_model/config.json', 'r') as f:
+            with open('models/ensemble_sentiment_model/config.json', 'r') as f:
                 config = json.load(f)
             
-            print("LSTM model successfully loaded.")
+            print("Ensemble model components successfully loaded.")
             return True
         except Exception as e:
             print(f"Error loading model files: {str(e)}")
@@ -108,41 +138,83 @@ def fallback_sentiment_analysis(text):
     return sentiment, confidence
 
 def predict_sentiment(text):
-    """Predict sentiment using the LSTM model or fallback to dictionary approach"""
-    global model, tokenizer, config
+    """Predict sentiment using the ensemble model or fallback to dictionary approach"""
+    global lstm_feature_extractor, ensemble_model, tokenizer, config, classifiers
     
-    # For now, always use the fallback approach since we're having issues with TensorFlow
-    print("Using fallback sentiment analysis")
-    return fallback_sentiment_analysis(text)
+    # Check if required models are loaded
+    models_loaded = (lstm_feature_extractor is not None and 
+                    tokenizer is not None and 
+                    config is not None and 
+                    (ensemble_model is not None or len(classifiers) > 0))
     
-    # The following code is kept for future reference if you fix the TensorFlow installation
-    """
-    if model is None or tokenizer is None or config is None:
-        # If model not loaded, try loading it
-        if not load_sentiment_model():
-            # If loading fails, use fallback approach
-            return fallback_sentiment_analysis(text)
+    if not models_loaded:
+        # If models not loaded, use fallback approach
+        print("Models not loaded, using fallback sentiment analysis")
+        return fallback_sentiment_analysis(text)
     
     try:
-        # Tokenize the text
+        # 1. Tokenize the text
         sequences = tokenizer.texts_to_sequences([text])
         
-        # Apply padding
-        padded_sequence = pad_sequences(
+        # 2. Apply padding
+        if 'pad_sequences' not in globals():
+            print("pad_sequences not available, using fallback")
+            return fallback_sentiment_analysis(text)
+            
+        pad_sequences_func = globals()['pad_sequences']
+        
+        padded_sequence = pad_sequences_func(
             sequences, 
             maxlen=config.get('max_sequence_length', 50),
             padding='post'
         )
         
-        # Make prediction
-        prediction = model.predict(padded_sequence)[0][0]
+        # 3. Extract LSTM features - bu adım çok önemli
+        # LSTM modelinin son katman çıktıları, sınıflandırıcının girdi verileri olarak kullanılıyor
+        lstm_features = lstm_feature_extractor.predict(padded_sequence)
+        print(f"LSTM özellikleri şekli: {lstm_features.shape}")
         
-        # Convert prediction to sentiment and confidence
+        # 4. Make prediction using either the full ensemble model or the best classifier
+        model_used = ""
+        if ensemble_model is not None:
+            # Tam ensemble model var ise kullan
+            model_used = "full_ensemble_model"
+            # Full ensemble model is available - bu durumda padding yapılmış veri doğrudan kullanılır
+            prediction = ensemble_model.predict(padded_sequence)[0][0]
+        else:
+            # LSTM özellikleri ve klasik ML modelini kullan
+            # Use the best classifier according to config
+            best_classifier_name = config.get('best_classifier', 'Random Forest').lower().replace(' ', '_')
+            
+            if best_classifier_name == 'random_forest' and 'random_forest' in classifiers:
+                model_used = "random_forest"
+                # Random forest sınıflandırıcısı, LSTM özelliklerini kullanıyor
+                prediction = classifiers['random_forest'].predict_proba(lstm_features)[0][1]
+            elif best_classifier_name == 'gradient_boosting' and 'gradient_boosting' in classifiers:
+                model_used = "gradient_boosting"
+                prediction = classifiers['gradient_boosting'].predict_proba(lstm_features)[0][1]
+            elif best_classifier_name == 'logistic_regression' and 'logistic_regression' in classifiers:
+                model_used = "logistic_regression"
+                prediction = classifiers['logistic_regression'].predict_proba(lstm_features)[0][1]
+            else:
+                # If best classifier not found, use any available classifier
+                for classifier_name, classifier in classifiers.items():
+                    model_used = classifier_name
+                    prediction = classifier.predict_proba(lstm_features)[0][1]
+                    break
+                else:
+                    # No classifier available, use fallback
+                    print("No classifiers available, using fallback")
+                    return fallback_sentiment_analysis(text)
+        
+        print(f"Tahmin için kullanılan model: {model_used}")
+        
+        # 5. Convert prediction to sentiment and confidence
         if prediction >= 0.5:
-            sentiment = "Positive"
+            sentiment = "Pozitif"  # Turkish format
             confidence = float(prediction)
         else:
-            sentiment = "Negative"
+            sentiment = "Negatif"  # Turkish format
             confidence = float(1.0 - prediction)
         
         return sentiment, confidence
@@ -150,11 +222,14 @@ def predict_sentiment(text):
         print(f"Error during prediction: {str(e)}")
         # If prediction fails, use fallback approach
         return fallback_sentiment_analysis(text)
-    """
 
-# Skip model initialization since we're using the fallback approach
-print("Using dictionary-based fallback sentiment analysis")
-# Commented out to avoid errors: load_sentiment_model()
+# Try to load the ensemble model
+print("Attempting to load ensemble model...")
+try:
+    load_ensemble_model()
+except Exception as e:
+    print(f"Error loading ensemble model: {str(e)}")
+    print("Using dictionary-based fallback sentiment analysis")
 
 @app.route('/')
 def index():

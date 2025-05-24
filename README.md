@@ -57,24 +57,65 @@ Bu özelliği kullanabilmek için Twitter API entegrasyonu yapmanız gerekmekted
 
 ## Model Hakkında
 
-Uygulama `sentiment_model` klasöründe bulunan LSTM tabanlı derin öğrenme modelini kullanmaktadır. Bu model metin önişleme için NLTK kütüphanesini kullanmaktadır ve tokenleştirme işlemi için önceden eğitilmiş bir tokenizer içermektedir.
+Uygulama `models/ensemble_sentiment_model` klasöründe bulunan ensemble model mimarisini kullanmaktadır. Bu model, LSTM tabanlı öznitelik çıkarıcı ve geleneksel makine öğrenimi sınıflandırıcılarının kombinasyonu şeklindedir (Random Forest, Gradient Boosting ve Lojistik Regresyon). Bu ensemble yaklaşım, tek başına LSTM kullanımına göre daha yüksek doğruluk ve güvenilirlik sağlamaktadır.
+
+Metin önişleme için NLTK kütüphanesi kullanılmaktadır ve tokenleştirme işlemi için önceden eğitilmiş bir tokenizer içermektedir.
 
 ## Proje Yapısı
 
 ```
 SentimentAnalysis/
 ├── app.py                 # Flask web uygulaması
+├── ensemble_model_test.ipynb # Ensemble model test notebook
+├── test_ensemble.py       # Ensemble model test script
+├── update_preprocessing.py # Script to update preprocessing files
+├── ensemble_model_update.md # Update documentation
 ├── requirements.txt       # Gerekli Python kütüphaneleri
 ├── templates/             # HTML şablonları
 │   ├── index.html         # Ana sayfa
 │   └── twitter.html       # Twitter analizi sayfası
-└── sentiment_model/       # Önceden eğitilmiş model dosyaları
-    ├── config.json        # Model konfigürasyonu
-    ├── lstm_model.h5      # LSTM model dosyası
+├── models/                # Model dosyaları
+│   ├── ensemble_sentiment_model/ # Ensemble model dosyaları
+│   │   ├── best_classifier_gradient_boosting.pkl # Gradient Boosting sınıflandırıcı
+│   │   ├── best_classifier_lojistik_regresyon.pkl # Lojistik Regresyon sınıflandırıcı
+│   │   ├── best_classifier_random_forest.pkl # Random Forest sınıflandırıcı 
+│   │   ├── config.json    # Model konfigürasyonu
+│   │   ├── full_ensemble_model.h5 # Tam ensemble model
+│   │   ├── lstm_feature_extractor.h5 # LSTM öznitelik çıkarıcı
+│   │   ├── text_preprocessing.py # Metin önişleme fonksiyonları
+│   │   └── tokenizer.pkl  # Eğitilmiş tokenizer
+│   └── sentiment_model/   # Eski LSTM model (Yedek)
+└── sentiment_model/       # Metin önişleme modülü
     ├── text_preprocessing.py  # Metin önişleme fonksiyonları
-    └── tokenizer.pkl      # Eğitilmiş tokenizer
+    └── __pycache__/       # Python önbellek dosyaları
 ```
 
 ## Geliştirme
 
 Twitter analizi özelliğini aktif etmek için Twitter API anahtarları edinmeniz ve bu anahtarları kullanarak bir Twitter API entegrasyonu yapmanız gerekmektedir. Bu entegrasyonu gerçekleştirmek için `app.py` dosyasında `twitter_search` fonksiyonunu güncelleyebilirsiniz.
+
+## Ensemble Model Mimarisi
+
+Bu projede kullanılan ensemble model, aşağıdaki bileşenlerden oluşmaktadır:
+
+1. **LSTM Öznitelik Çıkarıcı**: Metinlerden derin öznitelikler çıkarmak için kullanılan bir LSTM ağı.
+2. **Geleneksel Makine Öğrenimi Sınıflandırıcıları**:
+   - Random Forest
+   - Gradient Boosting
+   - Lojistik Regresyon
+
+Ensemble model, iki aşamalı bir süreçle çalışır:
+1. Giriş metni önişleme adımlarından geçirilerek temizlenir.
+2. Temizlenmiş metin LSTM modelinden geçirilerek derin öznitelikler çıkarılır.
+3. Bu öznitelikler, en iyi performans gösteren sınıflandırıcıya (genellikle Random Forest) verilerek nihai duygu tahmini yapılır.
+
+Bu hibrit yaklaşım, tek başına derin öğrenme modellerine göre daha yüksek doğruluk ve daha iyi genelleme yeteneği sağlamaktadır.
+
+### Model Performansı
+
+Ensemble model, standart LSTM modeline göre özellikle:
+- Daha kısa metinlerde
+- Az görülen ifade kalıplarında
+- Belirsiz duygusal bağlamlarda
+
+daha iyi performans göstermektedir.
